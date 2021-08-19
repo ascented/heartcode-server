@@ -1,0 +1,23 @@
+{
+    "compilerOptions": {
+        "esModuleInterop": true,
+        "experimentalDecorators": true,
+        "allowSyntheticDefaultImports": true,
+        "typeRoots": [
+            "node_modules/@types"
+        ],
+        "types": [
+            "node"
+        ],
+        "moduleResolution": "node",
+        "target": "es2020",
+        "lib": [ "es2020" ],
+        "plugins": [
+            {
+                "transform": "typescript-is/lib/transform-inline/transformer",
+                "shortCircuit": false
+            },
+            { "transform": "ts-transformer-keys/transformer" }
+        ]
+    }
+}
