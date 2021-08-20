@@ -10,13 +10,15 @@ export const AccountModel = database.define('Account', {
     name: {
         type: DataTypes.STRING(64),
     },
-    auth_key: {
+    api_token: {
         type: DataTypes.STRING(64)
     },
     balance: {
-        type: DataTypes.INTEGER
+        type: DataTypes.INTEGER,
+        defaultValue: 0
     },
     rank_points: {
-        type: DataTypes.INTEGER
+        type: DataTypes.INTEGER,
+        defaultValue: 0
     }
 }, { tableName: 'account' });
