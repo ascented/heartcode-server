@@ -15,17 +15,26 @@ const routeCallback = (target: any, method: string) => {
                 }
             });
         } else {
-            let request = target[method]({
+            let request = {
+                closed: false,
                 data: query,
                 response: response => {
+                    if (request.closed) return;
                     res.send(JSON.stringify({ response: response }));
+                    request.closed = true;
                     return response;
                 },
                 error: error => {
-                    res.send(JSON.stringify({ error: error}));
+                    if (request.closed) return;
+                    res.send(JSON.stringify({ error: error }));
+                    request.closed = true;
                     return error;
                 }
-            });
+            };
+            for (let method of methodData.use) {
+                await method(request);
+            }
+            target[method](request);
         }
     };
 }
@@ -53,6 +62,7 @@ const initRoute = (target: any, method: string) => {
         type: null,
         path: null,
         requires: [],
+        use: [],
         callback: routeCallback(target, method)
     };
 }
@@ -64,7 +74,7 @@ export const Get = (path: string) => {
         target[key] = Object.assign(target[key], {
             type: 'get',
             path: path
-        })
+        });
     };
 }
 
@@ -75,7 +85,7 @@ export const Post = (path: string) => {
         target[key] = Object.assign(target[key], {
             type: 'post',
             path: path
-        })
+        });
     };
 }
 
@@ -85,6 +95,16 @@ export const Requires = (...keys: string[]) => {
         if (!target[key]) initRoute(target, method);
         target[key] = Object.assign(target[key], {
             requires: keys
-        })
+        });
+    };
+}
+
+export const Use = (...externalMethods: Function[]) => {
+    return function (target: any, method: string) {
+        let key = `@${method}`;
+        if (!target[key]) initRoute(target, method);
+        target[key] = Object.assign(target[key], {
+            use: externalMethods
+        });
     };
 }
