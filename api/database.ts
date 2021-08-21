@@ -3,6 +3,7 @@ import Log from './utils/cl';
 
 
 const log = new Log('Database');
-export const database = new Sequelize('postgresql://localhost:5432/heartcode', {
+export const database = new Sequelize('heartcode', 'postgres', 'ascent', {
+    dialect: 'postgres',
     logging: msg => log.info(msg)
 });
