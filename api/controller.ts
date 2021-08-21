@@ -15,12 +15,17 @@ const routeCallback = (target: any, method: string) => {
                 }
             });
         } else {
-            let request = target[method](query, response => {
-                res.send(JSON.stringify({ response: response }));
-            }, error => {
-                res.send(JSON.stringify({ error: error}));
+            let request = target[method]({
+                data: query,
+                response: response => {
+                    res.send(JSON.stringify({ response: response }));
+                    return response;
+                },
+                error: error => {
+                    res.send(JSON.stringify({ error: error}));
+                    return error;
+                }
             });
-            res.send('Not implemented.');
         }
     };
 }
