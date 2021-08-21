@@ -1,27 +1,38 @@
 import * as express from 'express';
-import { Controller, Get, Post, Requires, Request } from '../controller';
+import { Controller, Get, Post, Requires, Request, Use } from '../controller';
 import { ErrorResponse } from '../typings';
 import { AccountModel } from '../models/account';
 import { generateToken, hashFrom } from '../crypto';
+import { User } from 'discord.js';
+import Security from '../security';
 
 
 export default class AccountController extends Controller {
     public static signUpSessions = new Map<string, boolean>();
-    public static logged = new Map<string, number>(); // <api_token, id>
+    public static authorized = new Map<string, number>(); // <api_token, id>
 
+    private static verifySignUpSession(request: Request) {
+        let data = request.data;
+        let sessions = this.signUpSessions;
+        if (!sessions.has(data.session_key) || sessions.get(data.session_key)) {
+            return request.error({
+                code: 'signUp.invalidSession',
+                message: 'Invalid session.'
+            });
+        }
+    }
+    
     private static verifyToken(request: Request) {
-        if (!AccountController.logged.get(request.data.api_token)) {
+        if (!this.authorized.get(request.data.api_token)) {
             request.error({
                 code: 'auth.notAuthorized',
                 message: 'Not authorized.'
             });
-            return false;
         }
-        return true;
     }
 
     @Post('/account/signUp/openSession')
-    @Requires('developer_key')
+    @Use(Security.developer)
     public static async openSignUpSession(request: Request) {
         let sessionKey = generateToken();
         AccountController.signUpSessions.set(sessionKey, false);
@@ -34,7 +45,8 @@ export default class AccountController extends Controller {
      * Регистрирует нового пользователя в базе.
      */
     @Post('/account/signUp')
-    @Requires('name', 'password', 'session_key')
+    @Use(AccountController.verifySignUpSession)
+    @Requires('name', 'password')
     public static async signUp(request: Request) {
         let data = request.data;
         let sessions = AccountController.signUpSessions;
@@ -94,17 +106,17 @@ export default class AccountController extends Controller {
                 message: 'Bad password.'
             });
         }
-        AccountController.logged.set(account.api_token, account.id);
+        AccountController.authorized.set(account.api_token, account.id);
         return request.response({
             api_token: account.api_token
         });
     }
 
     @Post('/account/setName')
-    @Requires('name', 'api_token')
+    @Use(AccountController.verifyToken)
+    @Requires('name')
     public static async setName(request: Request) {
         let data = request.data;
-        if (!AccountController.verifyToken(request)) return;
         if (data.name > 64 || !data.name) {
             return request.error({
                 code: 'validation.stringLength',
@@ -120,6 +132,7 @@ export default class AccountController extends Controller {
     }
 
     @Post('/account/pay')
+    @Use(AccountController.verifyToken)
     @Requires('amount', 'api_token')
     public static async pay(request: Request) {}
 }
