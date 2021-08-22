@@ -4,7 +4,7 @@ import { ErrorResponse } from './typings';
 
 const routeCallback = (target: any, method: string) => {
     return async ({ query }, res) => {
-        let methodData = target[`@${method}`];
+        let methodData = target[`@${method}`] as Route;
         let queryKeys = Object.keys(query);
         let missingParameters = methodData.requires.filter(e => !queryKeys.includes(e));
         if (missingParameters.length) {
@@ -38,6 +38,14 @@ const routeCallback = (target: any, method: string) => {
         }
     };
 }
+
+type Route = {
+    type: string,
+    path: string,
+    requires: string[],
+    use: Function[],
+    callback: (target, method) => null
+};
 
 export type Request = {
     data: any,
@@ -104,7 +112,7 @@ export const Use = (...externalMethods: Function[]) => {
         let key = `@${method}`;
         if (!target[key]) initRoute(target, method);
         target[key] = Object.assign(target[key], {
-            use: externalMethods
+            use: target[key].use.concat(externalMethods)
         });
     };
 }
