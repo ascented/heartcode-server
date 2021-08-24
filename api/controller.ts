@@ -32,6 +32,7 @@ const routeCallback = (target: any, method: string) => {
                 }
             };
             for (let method of methodData.use) {
+                if (request.closed) return;
                 await method(request);
             }
             target[method](request);
@@ -54,12 +55,12 @@ export type Request = {
 };
 
 export class Controller {
-    static get router() {
-        let router = express.Router();
+    static get bind() {
+        let router = express.Router() as any;
         let descriptors = Object.getOwnPropertyDescriptors(this);
-        let methods = Object.entries(descriptors).map(e => e[0].startsWith('@') ? e[1].value : null).filter(e => e);
-        for (let method of methods) {
-            router[method.type](method.path, method.callback);
+        let routes = Object.entries(descriptors).map(e => e[0].startsWith('@') ? e[1].value : null).filter(e => e);
+        for (let route of routes) {
+            router[route.type](route.path, route.callback);
         }
         return router;
     }
