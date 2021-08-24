@@ -1,4 +1,4 @@
-import { Request } from "./controller";
+import { Request } from "../controller";
 import dotenv from 'dotenv';
 
 
