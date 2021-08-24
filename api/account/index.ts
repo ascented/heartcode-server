@@ -3,16 +3,20 @@ import { AccountModel } from '../models/account';
 import { generateToken, hashFrom } from '../crypto';
 import Security from '../security';
 import { FindOptions } from 'sequelize';
+import Session from '../session';
 
 
 export default class AccountController extends Controller {
-    public static signUpSessions = new Map<string, boolean>();
+    public static signUpSessions = new Map<string, Session>();
     public static authorized = new Map<string, number>(); // <api_token, name>
 
+    /**
+     * Проверка на существование сессии.
+     */
     private static verifySignUpSession(request: Request) {
         let data = request.data;
         let sessions = AccountController.signUpSessions;
-        if (!sessions.has(data.session_key) || sessions.get(data.session_key)) {
+        if (!sessions.has(data.session_key)) {
             return request.error({
                 code: 'session.invalid',
                 message: 'Invalid session.'
@@ -20,6 +24,9 @@ export default class AccountController extends Controller {
         }
     }
     
+    /**
+     * Проверка авторизации токена API.
+     */
     private static verifyToken(request: Request) {
         if (!AccountController.authorized.get(request.data.api_token)) {
             request.error({
@@ -29,6 +36,9 @@ export default class AccountController extends Controller {
         }
     }
 
+    /**
+     * Поиск по учетным записям.
+     */
     private static async select(options: FindOptions<any>): Promise<any | any[]> {
         let query = await AccountModel.findAll(options);
         if (!query.length) {
@@ -54,14 +64,30 @@ export default class AccountController extends Controller {
         return account;
     }
 
+    /**
+     * Открывает регистрационную сессию.
+     */
     @Post('/account/signUp/openSession')
     @Use(Security.developer)
     public static async openSignUpSession(request: Request) {
         let sessionKey = generateToken();
-        AccountController.signUpSessions.set(sessionKey, false);
+        AccountController.signUpSessions.set(sessionKey, new Session());
         request.response({
             session_key: sessionKey
         });
+    }
+
+    /**
+     * Вебхук сессии для внешних приложений.
+     */
+    @Get('/account/signUp/listenSession')
+    @Use(AccountController.verifySignUpSession)
+    public static async listenSignUpSession(request: Request) {
+        let data = request.data;
+        let sessions = AccountController.signUpSessions;
+        let session = sessions.get(data.session_key)
+        session.addListener(request);
+        console.log(sessions.get(data.session_key));
     }
 
     /**
@@ -73,10 +99,11 @@ export default class AccountController extends Controller {
     public static async signUp(request: Request) {
         let data = request.data;
         let sessions = AccountController.signUpSessions;
+        let session = sessions.get(data.session_key);
         /**
          * Проверка на существования сессии и закрытость потока.
          */
-        sessions[data.session_key] = true; // Закрытие потока
+        session.close(); // Закрытие потока
         if (data.name > 64 || !data.name) {
             return request.error({
                 code: 'name.badLength',
@@ -95,15 +122,20 @@ export default class AccountController extends Controller {
                 message: 'Bad length for password. (6-512 symbols)'
             });
         }
-        delete sessions[data.session_key]; // Удаление сессии
+        let token = generateToken();
         await AccountModel.create({
             name: data.name,
             password_hash: hashFrom(data.password),
-            api_token: generateToken()
+            api_token: token
         }) as any;
+        await session.post({ api_token: token });
+        delete sessions[data.session_key];
         return request.response({ success: true });
     }
 
+    /**
+     * Возвращает токен API методом формы.
+     */
     @Post('/account/login')
     @Requires('name', 'password')
     public static async login(request: Request) {
@@ -129,6 +161,9 @@ export default class AccountController extends Controller {
         });
     }
 
+    /**
+     * Возвращает информацию об аккаунте.
+     */
     @Get('/account')
     @Use(AccountController.verifyToken)
     @Requires('name')
@@ -150,6 +185,9 @@ export default class AccountController extends Controller {
         });
     }
 
+    /**
+     * Редактирует имя аккаунта.
+     */
     @Post('/account/setName')
     @Use(AccountController.verifyToken)
     @Requires('name')
@@ -168,6 +206,9 @@ export default class AccountController extends Controller {
         return request.response({ success: true });
     }
 
+    /**
+     * Осуществляет перевод валюты.
+     */
     @Post('/account/pay')
     @Use(AccountController.verifyToken)
     @Requires('amount', 'name')
