@@ -1,9 +1,10 @@
 import { Controller, Get, Post, Requires, Request, Use } from '../controller';
 import { AccountModel } from '../models/account';
 import { generateToken, hashFrom } from '../crypto';
-import Security from '../security';
+import Security from '../middleware/security';
 import { FindOptions } from 'sequelize';
 import Session from '../session';
+import Type from '../middleware/type';
 
 
 export default class AccountController extends Controller {
@@ -95,6 +96,9 @@ export default class AccountController extends Controller {
      */
     @Post('/account/signUp')
     @Use(AccountController.verifySignUpSession)
+    @Use(Type.stringLength('name', 3, 64))
+    @Use(Type.stringLettersAndNumbers('name'))
+    @Use(Type.stringLength('password', 6, 512))
     @Requires('name', 'password')
     public static async signUp(request: Request) {
         let data = request.data;
@@ -104,22 +108,10 @@ export default class AccountController extends Controller {
          * Проверка на существования сессии и закрытость потока.
          */
         session.close(); // Закрытие потока
-        if (data.name > 64 || !data.name) {
-            return request.error({
-                code: 'name.badLength',
-                message: 'Bad length for name. (3-64 symbols)'
-            });
-        }
         if (await AccountModel.count({ where: { name: data.name } })) {
             return request.error({
                 code: 'name.busy',
                 message: 'This name is busy.'
-            });
-        }
-        if (data.password.length < 6 || data.password.length > 512) {
-            return request.error({
-                code: 'password.badLength',
-                message: 'Bad length for password. (6-512 symbols)'
             });
         }
         let token = generateToken();
@@ -190,15 +182,11 @@ export default class AccountController extends Controller {
      */
     @Post('/account/setName')
     @Use(AccountController.verifyToken)
+    @Use(Type.stringLength('name', 3, 64))
+    @Use(Type.stringLettersAndNumbers('name'))
     @Requires('name')
     public static async setName(request: Request) {
         let data = request.data;
-        if (data.name > 64 || !data.name) {
-            return request.error({
-                code: 'name.badLength',
-                message: 'Bad length for name. (3-64 symbols)'
-            });
-        }
         let account = await AccountController.select({ where: { api_token: data.api_token } });
         await account.update({
             name: data.name
